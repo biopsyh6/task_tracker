@@ -86,7 +86,6 @@ class PriorityCalculator:
             ''', (today,))
         
         rows = cursor.fetchall()
-        print(rows)
 
         tasks = []
         for row in rows:
