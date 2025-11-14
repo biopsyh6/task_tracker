@@ -27,6 +27,7 @@ class SmartAssistantGUI:
         self.root.title("Умный Помощник")
         self.root.geometry("1000x750")
         self.root.configure(bg="#f0f4f8")
+        
 
     def create_widgets(self):
         self.create_title()
@@ -48,7 +49,6 @@ class SmartAssistantGUI:
             ("Добавить цель", self.open_add_goal),
             ("Добавить задачу", self.open_add_task),
             ("Установить энергию", self.open_set_energy),
-            ("Что делать сейчас?", self.show_recommendation),
             ("Обновить", self.refresh_all)
         ]
 
@@ -56,6 +56,16 @@ class SmartAssistantGUI:
             btn = ttk.Button(btn_frame, text=text, command=cmd, width=20)
             btn.pack(side=tk.LEFT, padx=5)
 
+        special_btn = tk.Button(btn_frame, 
+                            text="Что делать сейчас?", 
+                            command=self.show_recommendation,  
+                            width=20, 
+                            bg="#486581",
+                            fg='white', 
+                            padx=10,  
+                            pady=6)   
+        special_btn.pack(side=tk.LEFT, padx=5)
+        
     def create_recommendation_section(self):
         rec_frame = tk.LabelFrame(self.root, text=" Рекомендация ", font=("Helvetica", 12, "bold"),
                                   bg="#e8f4f8", fg="#2c3e50")
