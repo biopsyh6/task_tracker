@@ -57,14 +57,9 @@ class PriorityCalculator:
         energy_level = row[0] if row else "medium"
 
         day_en = now.strftime("%A").lower()
-        day_map = {
-        "monday": "понедельник", "tuesday": "вторник", "wednesday": "среда",
-        "thursday": "четверг", "friday": "пятница", "saturday": "суббота", "sunday": "воскресенье"
-        }
-        day_ru = day_map.get(day_en, day_en)
 
         return {"now": now, "time_of_day": time_of_day, "energy_level": energy_level, 
-                "day": day_ru}
+                "day": day_en}
     
     def is_working_time(self, context: Dict) -> bool:
         cursor = self.conn.cursor()
@@ -91,6 +86,7 @@ class PriorityCalculator:
             ''', (today,))
         
         rows = cursor.fetchall()
+        print(rows)
 
         tasks = []
         for row in rows:
@@ -150,9 +146,11 @@ class PriorityCalculator:
     
     def recommend_task(self) -> Optional[Dict]:
         context = self.get_current_context()
-        if not self.is_working_time(context): return None
+        if not self.is_working_time(context): 
+            return None
         tasks = self.fetch_tasks()
-        if not tasks: return None
+        if not tasks: 
+            return None
 
         scored = [self.calculate_priority(t, context) for t in tasks]
         scored.sort(key=lambda x: x["score"], reverse=True)
