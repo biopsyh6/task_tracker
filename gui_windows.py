@@ -141,7 +141,7 @@ class GUIWindows:
         contrib_entry.insert(0, "0.8")
         contrib_entry.pack(pady=2, padx=20)
 
-        tk.Label(win, text="Разблокирует задачи (ID через запятую):", bg="#f0f4f8").pack(anchor="w", padx=20, pady=(10,2))
+        tk.Label(win, text="Будет разблокировано после выполнения следующих задач (ID через запятую):", bg="#f0f4f8").pack(anchor="w", padx=20, pady=(10,2))
         blocks_entry = tk.Entry(win, width=50)
         blocks_entry.pack(pady=2, padx=20)
 

@@ -1,6 +1,7 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
 from datetime import datetime, timedelta
+import json
 
 class GUITabs:
     def __init__(self, main_app):
@@ -179,22 +180,64 @@ class GUITabs:
         tree = self.tree_today
         for i in tree.get_children():
             tree.delete(i)
+
         cursor = self.conn.cursor()
         today = datetime.now().strftime("%Y-%m-%d")
+
         cursor.execute('''
             SELECT t.id, t.title, t.duration_minutes, t.importance_level, t.deadline,
-                   g.title, t.status
+                g.title, t.status, t.blocks_task_ids
             FROM tasks t
             LEFT JOIN goals g ON t.goal_id = g.id
             WHERE t.scheduled_date = ? AND t.status IN ('todo', 'in_progress')
             ORDER BY t.importance_level DESC
         ''', (today,))
+
         for row in cursor.fetchall():
-            deadline = row[4][:16].replace("T", " ") if row[4] else "-"
-            status = " [в процессе]" if row[6] == "in_progress" else ""
+            task_id, title, duration, importance, deadline, goal_title, status, blocks_json = row
+
+            deadline_str = deadline[:16].replace("T", " ") if deadline else "-"
+            status_suffix = " [в процессе]" if status == "in_progress" else ""
+
+            # Проверка: заблокирована ли задача
+            blocked = False
+            blocking_tasks = []
+            if blocks_json:
+                try:
+                    blocked_ids = json.loads(blocks_json)
+                    if blocked_ids:
+                        placeholders = ','.join('?' * len(blocked_ids))
+                        cursor.execute(f'''
+                            SELECT id, title FROM tasks
+                            WHERE id IN ({placeholders}) AND status != 'done'
+                        ''', blocked_ids)
+                        blocking = cursor.fetchall()
+                        if blocking:
+                            blocked = True
+                            blocking_tasks = [f"{tid}: {tname}" for tid, tname in blocking]
+                except Exception as e:
+                    print(f"JSON error: {e}")
+
+            # Отображение
+            if blocked:
+                hint = ", ".join(blocking_tasks[:2])
+                if len(blocking_tasks) > 2:
+                    hint += f" и ещё {len(blocking_tasks)-2}"
+                title_display = f"[Заблокирована: {hint}] {title}"
+                tag = "blocked"
+            else:
+                title_display = f"{title}{status_suffix}"
+                tag = "normal" if status == "todo" else "in_progress"
+
             tree.insert("", tk.END, values=(
-                row[0], f"{row[1]}{status}", f"{row[2]} мин", f"{row[3]}/10", deadline, row[5] or "-"
-            ))
+                task_id, title_display, f"{duration} мин", f"{importance}/10",
+                deadline_str, goal_title or "-"
+            ), tags=(tag,))
+
+        # Стили
+        tree.tag_configure("blocked", background="#ffebee", foreground="#c62828")
+        tree.tag_configure("in_progress", background="#fff8e1", foreground="#e65100")
+        tree.tag_configure("normal", background="#ffffff", foreground="#000000")
 
     def load_in_progress_tasks(self):
         tree = self.tree_in_progress

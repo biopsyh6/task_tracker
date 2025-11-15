@@ -76,25 +76,48 @@ class PriorityCalculator:
     def fetch_tasks(self) -> List[Task]:
         cursor = self.conn.cursor()
         today = datetime.now().strftime("%Y-%m-%d")
+
         cursor.execute('''
             SELECT t.id, t.title, t.duration_minutes, t.importance_level, t.deadline,
-                       t.goal_id, g.weight, t.energy_type, t.task_type, t.blocks_task_ids,
-                       t.contribution
+                t.goal_id, g.weight, t.energy_type, t.task_type, t.blocks_task_ids,
+                t.contribution
             FROM tasks t
             LEFT JOIN goals g ON t.goal_id = g.id
             WHERE t.scheduled_date = ? AND t.status = 'todo'
-            ''', (today,))
+        ''', (today,))
         
         rows = cursor.fetchall()
-
         tasks = []
+
         for row in rows:
-            blocks = json.loads(row[9]) if row[9] else []
-            dependents = self.count_dependents(row[0])  # сколько зависят от этой
+            task_id = row[0]
+            blocks_json = row[9] 
+
+            # Проверяем: есть ли среди "заблокированных" невыполненные
+            blocked = False
+            if blocks_json:
+                try:
+                    blocked_ids = json.loads(blocks_json)
+                    if blocked_ids:
+                        placeholders = ','.join('?' * len(blocked_ids))
+                        cursor.execute(f'''
+                            SELECT COUNT(*) FROM tasks
+                            WHERE id IN ({placeholders}) AND status != 'done'
+                        ''', blocked_ids)
+                        if cursor.fetchone()[0] > 0:
+                            blocked = True
+                except:
+                    pass
+
+            if blocked:
+                continue 
+
+            # Если дошли сюда — задача доступна
+            dependents = self.count_dependents(task_id)
             goal_weight = row[6] if row[6] is not None else 1.0
             contribution = row[10] if row[10] is not None else 0.8
             tasks.append(Task(
-                id=row[0], title=row[1], duration=row[2], importance_level=row[3],
+                id=task_id, title=row[1], duration=row[2], importance_level=row[3],
                 deadline=row[4], goal_weight=goal_weight, contribution=contribution,
                 energy_type=row[7], task_type=row[8], dependents=dependents
             ))
