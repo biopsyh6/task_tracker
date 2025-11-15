@@ -14,6 +14,7 @@ class GUITabs:
         style.configure("TButton", padding=6, font=('Helvetica', 10))
         style.configure("Treeview", background="#ffffff", fieldbackground="#ffffff")
         style.configure("InProgress.Treeview", background="#fff8e1", fieldbackground="#fff8e1")
+        style.configure("Done.Treeview", background="#e8f5e9", fieldbackground="#e8f5e9", foreground="#2e7d32")
 
     def create_tabs(self):
         tab_control = ttk.Notebook(self.main_app.root)
@@ -27,8 +28,16 @@ class GUITabs:
         in_progress_frame = tk.Frame(tab_control, bg="#f0f4f8")
         tab_control.add(in_progress_frame, text=" В процессе ")
 
+        done_frame = tk.Frame(tab_control, bg="#f0f4f8")
+        tab_control.add(done_frame, text=" Выполненные задачи ")
+
+        goals_frame = tk.Frame(tab_control, bg="#f0f4f8")
+        tab_control.add(goals_frame, text=" Цели ")
+
         self.setup_task_tree(today_frame, "today")
         self.setup_task_tree(in_progress_frame, "in_progress")
+        self.setup_task_tree(done_frame, "done")
+        self.setup_goals_tree(goals_frame)
 
     def setup_task_tree(self, parent, tab_type):
         frame = tk.LabelFrame(parent, text=" ", font=("Helvetica", 10))
@@ -36,6 +45,8 @@ class GUITabs:
 
         columns = ("ID", "Задача", "Время", "Важность", "Дедлайн", "Цель")
         style_name = "InProgress.Treeview" if tab_type == "in_progress" else "Treeview"
+        if tab_type == "done":
+            style_name = "Done.Treeview"
         
         tree = ttk.Treeview(frame, columns=columns, show="headings", height=10, 
                            style=style_name, selectmode="extended")
@@ -59,23 +70,110 @@ class GUITabs:
                       command=lambda: self.mark_done(tree)).pack(side=tk.LEFT, padx=5)
             ttk.Button(btn_frame, text="Перенести на завтра",
                       command=lambda: self.postpone_selected(tree)).pack(side=tk.LEFT, padx=5)
-        else:  # in_progress
+        elif tab_type == "in_progress":  # in_progress
             ttk.Button(btn_frame, text="Завершить задачу",
                       command=lambda: self.finish_task(tree)).pack(side=tk.LEFT, padx=5)
             ttk.Button(btn_frame, text="Перенести на завтра",
                       command=lambda: self.postpone_selected(tree)).pack(side=tk.LEFT, padx=5)
             ttk.Button(btn_frame, text="Вернуть в список",
                       command=lambda: self.return_to_todo(tree)).pack(side=tk.LEFT, padx=5)
+        
+        elif tab_type == "done":
+            ttk.Button(btn_frame, text="Удалить навсегда",
+                  command=lambda: self.delete_done(tree)).pack(side=tk.LEFT, padx=5)
+        
 
         # Сохраняем ссылки на деревья
         if tab_type == "today":
             self.tree_today = tree
-        else:
+        elif tab_type == "in_progress":
             self.tree_in_progress = tree
+        elif tab_type == "done":
+            self.tree_done = tree
+
+    def setup_goals_tree(self, parent):
+        frame = tk.LabelFrame(parent, text=" ", font=("Helvetica", 10))
+        frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
+
+        columns = ("ID", "Цель", "Вес", "Дедлайн", "Выполнено", "Всего", "Прогресс")
+        tree = ttk.Treeview(frame, columns=columns, show="headings", height=12, selectmode="browse")
+        
+        for col in columns:
+            tree.heading(col, text=col)
+            tree.column(col, width=100, anchor="center")
+        tree.column("Цель", width=250, anchor="w")
+        tree.column("Прогресс", width=120, anchor="center")
+        tree.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+
+        scrollbar = ttk.Scrollbar(frame, orient=tk.VERTICAL, command=tree.yview)
+        tree.configure(yscroll=scrollbar.set)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+        btn_frame = tk.Frame(frame)
+        btn_frame.pack(pady=5)
+        ttk.Button(btn_frame, text="Показать задачи",
+                command=lambda: self.show_goal_tasks(tree)).pack(side=tk.LEFT, padx=5)
+
+        self.tree_goals = tree
 
     def refresh_all_tabs(self):
         self.load_today_tasks()
         self.load_in_progress_tasks()
+        self.load_done_tasks()
+        self.load_goals()
+
+    def load_goals(self):
+        if not hasattr(self, 'tree_goals'):
+            return
+        tree = self.tree_goals
+        for i in tree.get_children():
+            tree.delete(i)
+
+        cursor = self.conn.cursor()
+        now = datetime.now().strftime("%Y-%m-%d")
+
+        # Все цели
+        cursor.execute('''
+            SELECT g.id, g.title, g.weight, g.deadline
+            FROM goals g
+            ORDER BY 
+                CASE WHEN g.deadline IS NULL THEN 1 ELSE 0 END,
+                g.deadline ASC
+        ''')
+        goals = cursor.fetchall()
+
+        for goal in goals:
+            goal_id, title, weight, deadline = goal
+            deadline_str = deadline or "—"
+
+            # Подсчёт задач
+            cursor.execute('''
+                SELECT 
+                    COUNT(*) as total,
+                    SUM(CASE WHEN status = 'done' THEN 1 ELSE 0 END) as done
+                FROM tasks 
+                WHERE goal_id = ?
+            ''', (goal_id,))
+            total, done = cursor.fetchone()
+            total = total or 0
+            done = done or 0
+
+            progress = f"{done}/{total}"
+            if total > 0:
+                percent = int(done / total * 100)
+                progress += f" ({percent}%)"
+                if percent == 100:
+                    progress = f"{progress} [Выполнена]"
+
+            # Цвет строки
+            tag = "completed" if done == total and total > 0 else "active"
+            tree.insert("", tk.END, values=(
+                goal_id, title, f"{weight:.1f}", deadline_str, done, total, progress
+            ), tags=(tag,))
+
+        # Стили для строк
+        tree.tag_configure("completed", background="#e8f5e9", foreground="#2e7d32")
+        tree.tag_configure("active", background="#ffffff")
 
     def load_today_tasks(self):
         tree = self.tree_today
@@ -117,6 +215,59 @@ class GUITabs:
                 row[0], row[1], f"{row[2]} мин", f"{row[3]}/10", deadline, row[5] or "-"
             ))
 
+    def load_done_tasks(self):
+        if not hasattr(self, 'tree_done') or not self.tree_done:
+            return
+        tree = self.tree_done
+        for i in tree.get_children():
+            tree.delete(i)
+        cursor = self.conn.cursor()
+        today = datetime.now().strftime("%Y-%m-%d")
+        cursor.execute('''
+            SELECT t.id, t.title, t.duration_minutes, t.importance_level, t.deadline,
+                g.title
+            FROM tasks t
+            LEFT JOIN goals g ON t.goal_id = g.id
+            WHERE t.scheduled_date = ? AND t.status = 'done'
+            ORDER BY t.id DESC
+        ''', (today,))
+        for row in cursor.fetchall():
+            deadline = row[4][:16].replace("T", " ") if row[4] else "-"
+            tree.insert("", tk.END, values=(
+                row[0], row[1], f"{row[2]} мин", f"{row[3]}/10", deadline, row[5] or "-"
+            ))
+
+    def show_goal_tasks(self, tree):
+        selected = tree.selection()
+        if not selected:
+            messagebox.showwarning("Внимание", "Выберите цель!")
+            return
+        goal_id = tree.item(selected[0])['values'][0]
+
+        win = tk.Toplevel(self.main_app.root)
+        win.title("Задачи цели")
+        win.geometry("700x500")
+        win.configure(bg="#f0f4f8")
+
+        task_tree = ttk.Treeview(win, columns=("ID", "Задача", "Статус", "Дедлайн"), show="headings")
+        for col in task_tree["columns"]:
+            task_tree.heading(col, text=col)
+            task_tree.column(col, width=150, anchor="center")
+        task_tree.column("Задача", width=300, anchor="w")
+        task_tree.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+
+        cursor = self.conn.cursor()
+        cursor.execute('''
+            SELECT id, title, status, deadline
+            FROM tasks
+            WHERE goal_id = ?
+            ORDER BY status, deadline
+        ''', (goal_id,))
+        for row in cursor.fetchall():
+            deadline = row[3][:16].replace("T", " ") if row[3] else "-"
+            status_ru = {"todo": "к выполнению", "in_progress": "в процессе", "done": "выполнена"}[row[2]]
+            task_tree.insert("", tk.END, values=(row[0], row[1], status_ru, deadline))
+
     # === Общие методы работы с задачами ===
     def postpone_selected(self, tree):
         selected = tree.selection()
@@ -151,6 +302,24 @@ class GUITabs:
             done += cursor.rowcount
         self.conn.commit()
         messagebox.showinfo("Готово", f"Выполнено задач: {done}")
+        self.refresh_all_tabs()
+
+    def delete_done(self, tree):
+        selected = tree.selection()
+        if not selected:
+            messagebox.showwarning("Внимание", "Выберите задачу для удаления!")
+            return
+        if not messagebox.askyesno("Удалить", "Удалить выбранные задачи навсегда?"):
+            return
+
+        cursor = self.conn.cursor()
+        deleted = 0
+        for item in selected:
+            task_id = tree.item(item)['values'][0]
+            cursor.execute("DELETE FROM tasks WHERE id = ?", (task_id,))
+            deleted += cursor.rowcount
+        self.conn.commit()
+        messagebox.showinfo("Готово", f"Удалено задач: {deleted}")
         self.refresh_all_tabs()
 
     def finish_task(self, tree):

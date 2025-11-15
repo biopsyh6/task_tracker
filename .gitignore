@@ -4,3 +4,5 @@ myenv/
 
 __pycache__/
 *.pyc
+
+assistant.db
