@@ -112,7 +112,6 @@ class PriorityCalculator:
             if blocked:
                 continue 
 
-            # Если дошли сюда — задача доступна
             dependents = self.count_dependents(task_id)
             goal_weight = row[6] if row[6] is not None else 1.0
             contribution = row[10] if row[10] is not None else 0.8
@@ -186,13 +185,44 @@ class PriorityCalculator:
 
     def format_reason(self, b: Dict, ctx: Dict) -> str:
         parts = []
-        if b["urgency"] > 0.6: parts.append("горит дедлайн")
-        if b["importance"] > 0.8: parts.append("очень важно")
-        if b["goal_alignment"] > 0.6: parts.append("шаг к цели")
-        if b["dependency_bonus"] > 0.2: parts.append(f"разблокирует {int(math.exp(b['dependency_bonus']/0.3))-1} задач")
-        if b["context_match"] > 0.7: parts.append(f"подходит для {ctx['time_of_day']} и энергии")
-        if b["time_cost"] < 0.2: parts.append("быстро")
-        return ", ".join(parts) or "хороший баланс"
+
+        if b["urgency"] > 0.75:
+            parts.append("горит дедлайн")
+        elif b["urgency"] > 0.55:
+            parts.append("скоро дедлайн")
+
+        if b["importance"] >= 1.0:
+            parts.append("это критически важно!!!")
+        elif b["importance"] > 0.8:
+            parts.append("очень важно")
+        elif b["importance"] > 0.6:
+            parts.append("довольно важно")
+
+        if b["goal_alignment"] > 0.7:
+            parts.append("сильно продвигает цель")
+        elif b["goal_alignment"] > 0.5:
+            parts.append("шаг к цели")
+
+        if b["dependency_bonus"] > 0.25:
+            unlocked = int(math.exp(b['dependency_bonus'] / 0.3)) - 1
+            parts.append(f"разблокирует {unlocked} задач" if unlocked > 1 else "разблокирует 1 задачу")
+        elif b["dependency_bonus"] > 0.1:
+            parts.append("открывает путь дальше")
+
+        if b["context_match"] > 0.8:
+            time_names = {"morning": "утра", "afternoon": "дня", "evening": "вечера", "night": "ночи"}
+            time_ru = time_names.get(ctx["time_of_day"], ctx["time_of_day"])
+            parts.append(f"идеально для {time_ru} и твоей энергии")
+        elif b["context_match"] > 0.65:
+            parts.append("хорошо подходит под сейчас")
+
+        if b["time_cost"] < 0.25 and b["time_cost"] > 0.03:
+            parts.append("быстро сделается")
+
+        if not parts:
+            parts.append("лучший выбор на данный момент")
+
+        return ", ".join(parts).capitalize() + "."
     
 def what_to_do_now_smart(conn: sqlite3.Connection):
     calc = PriorityCalculator(conn)

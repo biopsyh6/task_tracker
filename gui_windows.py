@@ -126,14 +126,27 @@ class GUIWindows:
         goal_combo['values'] = ["(не привязывать)"] + [f"{id}. {title}" for id, title in goals]
         goal_combo.current(0)
 
-        tk.Label(win, text="Тип задачи:", bg="#f0f4f8").pack(anchor="w", padx=20, pady=(10,2))
-        type_combo = ttk.Combobox(win, values=["creative", "analytical", "routine", "communication"], state="readonly", width=47)
-        type_combo.set("routine")
+        tk.Label(win, text="Тип задачи:", bg="#f0f4f8").pack(anchor="w", padx=20, pady=(15,2))
+        type_var = tk.StringVar(value="routine")
+        type_combo = ttk.Combobox(win, textvariable=type_var, state="readonly", width=47)
+        type_combo['values'] = (
+            "Творческая",         
+            "Аналитическая",       
+            "Рутинная",            
+            "Общение"              
+        )
+        type_combo.set("Рутинная")
         type_combo.pack(pady=2, padx=20)
 
         tk.Label(win, text="Требуемая энергия:", bg="#f0f4f8").pack(anchor="w", padx=20, pady=(10,2))
-        energy_combo = ttk.Combobox(win, values=["low", "medium", "high"], state="readonly", width=47)
-        energy_combo.set("medium")
+        energy_var = tk.StringVar(value="medium")
+        energy_combo = ttk.Combobox(win, textvariable=energy_var, state="readonly", width=47)
+        energy_combo['values'] = (
+            "Низкая",   
+            "Средняя",   
+            "Высокая"    
+        )
+        energy_combo.set("Средняя")
         energy_combo.pack(pady=2, padx=20)
 
         tk.Label(win, text="Вклад в цель (0.0–1.0):", bg="#f0f4f8").pack(anchor="w", padx=20, pady=(10,2))
@@ -144,6 +157,18 @@ class GUIWindows:
         tk.Label(win, text="Будет разблокировано после выполнения следующих задач (ID через запятую):", bg="#f0f4f8").pack(anchor="w", padx=20, pady=(10,2))
         blocks_entry = tk.Entry(win, width=50)
         blocks_entry.pack(pady=2, padx=20)
+
+        TYPE_MAP = {
+            "Творческая": "creative",
+            "Аналитическая": "analytical",
+            "Рутинная": "routine",
+            "Общение": "communication"
+        }
+        ENERGY_MAP = {
+            "Низкая": "low",
+            "Средняя": "medium",
+            "Высокая": "high"
+        }
 
         def save():
             title = fields["title"].get().strip()
@@ -169,8 +194,8 @@ class GUIWindows:
             if goal_choice != "(не привязывать)" and goal_choice:
                 goal_id = int(goal_choice.split('.')[0])
 
-            task_type = type_combo.get()
-            energy_type = energy_combo.get()
+            task_type_en = TYPE_MAP[type_combo.get()]
+            energy_type_en = ENERGY_MAP[energy_combo.get()]
 
             try:
                 contribution = max(0.0, min(1.0, float(contrib_entry.get() or "0.8")))
@@ -195,7 +220,7 @@ class GUIWindows:
                     blocks_task_ids, contribution
                 ) VALUES (?, ?, ?, 'todo', ?, ?, ?, ?, ?, ?, ?, ?)
             ''', (title, duration, importance, today, today, deadline, goal_id,
-                  energy_type, task_type, blocks_json, contribution))
+                  energy_type_en, task_type_en, blocks_json, contribution))
             self.conn.commit()
             messagebox.showinfo("Готово", f"Задача «{title}» добавлена!")
             win.destroy()

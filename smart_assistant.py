@@ -24,7 +24,7 @@ class SmartAssistantGUI:
         self.refresh_all()
 
     def setup_main_window(self):
-        self.root.title("Умный Помощник")
+        self.root.title("Трекер задач")
         self.root.geometry("1000x750")
         self.root.configure(bg="#f0f4f8")
         
@@ -36,7 +36,7 @@ class SmartAssistantGUI:
         self.create_recommendation_section()
 
     def create_title(self):
-        title = tk.Label(self.root, text="Умный Помощник", font=("Helvetica", 20, "bold"),
+        title = tk.Label(self.root, text="Трекер задач", font=("Helvetica", 20, "bold"),
                          bg="#f0f4f8", fg="#2c3e50")
         title.pack(pady=10)
 
@@ -86,7 +86,7 @@ class SmartAssistantGUI:
         schedule = {row[0]: f"{row[1]}–{row[2]}" for row in cursor.fetchall()}
         day = datetime.now().strftime("%A").lower()
         today_str = schedule.get(day, "не задано")
-        self.root.title(f"Умный Помощник | Сегодня: {today_str}")
+        self.root.title(f"Трекер задач | Сегодня: {today_str}")
 
     # === Методы открытия окон (делегируем GUIWindows) ===
     def open_schedule(self):
@@ -110,12 +110,23 @@ class SmartAssistantGUI:
             return
 
         t = rec["task"]
-        text = (f"{t.title}\n"
-                f"Время: {t.duration} мин | Важность: {t.importance_level}/10\n"
-                f"Приоритет: {rec['score']:.3f}\n"
-                f"Почему: {rec['reason']}")
+        original_importance = t.importance_level * 2
 
-        self.rec_label.config(text=text)
+        text = (f"{t.title}\n"
+                f"Время: {t.duration} мин | Важность: {original_importance}/10\n"
+                f"Приоритет: {rec['score']:.3f}\n"
+                f"Почему именно сейчас:\n"
+                f"{rec['reason']}"
+                )
+        
+        self.rec_label.config(
+            text=text,
+            fg="#1b5e20",
+            font=("Helvetica", 11, "bold"),
+            justify=tk.LEFT,
+            anchor="w",
+            wraplength=900
+        )
 
         cursor = self.conn.cursor()
         cursor.execute('UPDATE tasks SET status = "in_progress" WHERE id = ?', (t.id,))
