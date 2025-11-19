@@ -79,8 +79,8 @@ class PriorityCalculator:
 
         cursor.execute('''
             SELECT t.id, t.title, t.duration_minutes, t.importance_level, t.deadline,
-                t.goal_id, g.weight, t.energy_type, t.task_type, t.blocks_task_ids,
-                t.contribution
+                   t.goal_id, g.weight, t.energy_type, t.task_type, t.blocks_task_ids,
+                   t.contribution
             FROM tasks t
             LEFT JOIN goals g ON t.goal_id = g.id
             WHERE t.scheduled_date = ? AND t.status = 'todo'
@@ -91,9 +91,9 @@ class PriorityCalculator:
 
         for row in rows:
             task_id = row[0]
-            blocks_json = row[9] 
+            blocks_json = row[9]
 
-            # Проверяем: есть ли среди "заблокированных" невыполненные
+            # === Проверка блокировки задачи ===
             blocked = False
             if blocks_json:
                 try:
@@ -110,16 +110,34 @@ class PriorityCalculator:
                     pass
 
             if blocked:
-                continue 
+                continue
+
+            # === Динамический вес цели ===
+            goal_id_from_db = row[5]      
+            base_goal_weight = row[6] if row[6] is not None else 1.0
+            contribution = row[10] if row[10] is not None else 0.8
+
+            dynamic_goal_weight = base_goal_weight
+            if goal_id_from_db:
+                dynamic_goal_weight = self.get_dynamic_goal_weight(goal_id_from_db)
+            else:
+                dynamic_goal_weight = 1.0
 
             dependents = self.count_dependents(task_id)
-            goal_weight = row[6] if row[6] is not None else 1.0
-            contribution = row[10] if row[10] is not None else 0.8
+
             tasks.append(Task(
-                id=task_id, title=row[1], duration=row[2], importance_level=row[3],
-                deadline=row[4], goal_weight=goal_weight, contribution=contribution,
-                energy_type=row[7], task_type=row[8], dependents=dependents
+                id=task_id,
+                title=row[1],
+                duration=row[2],
+                importance_level=row[3],
+                deadline=row[4],
+                goal_weight=dynamic_goal_weight,
+                contribution=contribution,
+                energy_type=row[7],
+                task_type=row[8],
+                dependents=dependents
             ))
+
         return tasks
     
     def count_dependents(self, task_id: int) -> int:
@@ -182,6 +200,36 @@ class PriorityCalculator:
             "score": best["score"],
             "reason": self.format_reason(best["breakdown"], context)
         }
+    
+    def get_dynamic_goal_weight(self, goal_id: Optional[int]) -> float:
+        if not goal_id:
+            return 1.0
+
+        cursor = self.conn.cursor()
+        
+        # Считаем количество задач по цели
+        cursor.execute("""
+            SELECT COUNT(*), SUM(CASE WHEN status = 'done' THEN 1 ELSE 0 END)
+            FROM tasks WHERE goal_id = ?
+        """, (goal_id,))
+        total, done = cursor.fetchone()
+        
+        if total == 0:
+            return 1.0
+        
+        progress = done / total
+        
+        momentum_bonus = 2.0 * (1 - progress) * progress
+        
+        # Получаем базовый вес цели
+        cursor.execute("SELECT weight FROM goals WHERE id = ?", (goal_id,))
+        base_weight = cursor.fetchone()
+        base_weight = base_weight[0] if base_weight else 1.0
+        
+        # Итоговый динамический вес
+        dynamic_weight = base_weight * (1 + momentum_bonus)
+        
+        return min(dynamic_weight, 3.0)  
 
     def format_reason(self, b: Dict, ctx: Dict) -> str:
         parts = []
