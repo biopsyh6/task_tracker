@@ -132,8 +132,8 @@ class GUITabs:
             tree.delete(i)
 
         calc = PriorityCalculator(self.conn)
-
         cursor = self.conn.cursor()
+
         cursor.execute('''
             SELECT g.id, g.title, g.weight, g.deadline
             FROM goals g
@@ -147,53 +147,67 @@ class GUITabs:
             goal_id, title, base_weight, deadline = goal
             deadline_str = deadline or "—"
 
-            cursor.execute('''
-                SELECT COUNT(*), SUM(CASE WHEN status = 'done' THEN 1 ELSE 0 END)
-                FROM tasks WHERE goal_id = ?
-            ''', (goal_id,))
+            cursor.execute("""
+                SELECT 
+                    COUNT(*) as total_tasks,
+                    SUM(CASE WHEN status = 'done' THEN 1 ELSE 0 END) as done_tasks,
+                    SUM(importance_level) as total_importance,
+                    SUM(CASE WHEN status = 'done' THEN importance_level ELSE 0 END) as done_importance
+                FROM tasks 
+                WHERE goal_id = ?
+            """, (goal_id,))
+            
             row = cursor.fetchone()
-            total = row[0] or 0
-            done = row[1] or 0
+            total_tasks = row[0] or 0
+            done_tasks = row[1] or 0
+            total_importance = row[2] or 0
+            done_importance = row[3] or 0
 
-            progress_text = f"{done}/{total}"
-            percent = 0
-            if total > 0:
-                percent = int(done / total * 100)
-                progress_text += f" ({percent}%)"
-                if percent == 100:
-                    progress_text += " [Выполнена]"
+            if total_importance > 0:
+                percent = int(100 * done_importance / total_importance)
+                progress_text = f"{done_importance}/{total_importance} важн. ({percent}%)"
+            else:
+                percent = 0 if total_tasks == 0 else int(100 * done_tasks / total_tasks)
+                progress_text = f"{done_tasks}/{total_tasks} задач ({percent}%)"
+
+            if percent == 100 and total_tasks > 0:
+                progress_text += " [Выполнена]"
 
             current_weight = calc.get_dynamic_goal_weight(goal_id)
-            
-            if abs(current_weight - base_weight) < 0.01:
-                weight_display = f"{base_weight:.1f}"
-            else:
-                weight_display = f"{base_weight:.1f} → {current_weight:.2f}"
-                if current_weight > base_weight * 1.5:
-                    weight_display += " [Горячо!]"
 
-            # Цвет строки
-            if done == total and total > 0:
+            if abs(current_weight - base_weight) < 0.05:
+                weight_display = f"{base_weight:.2f}"
+            else:
+                weight_display = f"{base_weight:.2f} → {current_weight:.2f}"
+                if current_weight >= base_weight * 2.0:
+                    weight_display += " [Горячо!]"
+                elif current_weight >= base_weight * 1.5:
+                    weight_display += " [Тепло]"
+
+            if percent == 100 and total_tasks > 0:
                 tag = "completed"
-            elif current_weight > base_weight * 2.0:
-                tag = "hot"         
-            elif current_weight > base_weight * 1.3:
-                tag = "warm"        
+            elif current_weight >= base_weight * 2.5:
+                tag = "on_fire"     
+            elif current_weight >= base_weight * 1.8:
+                tag = "hot"
+            elif current_weight >= base_weight * 1.3:
+                tag = "warm"
             else:
                 tag = "normal"
 
             tree.insert("", tk.END, values=(
                 goal_id,
                 title,
-                weight_display,      
+                weight_display,
                 deadline_str,
-                done,
-                total,
+                done_tasks,
+                total_tasks,
                 progress_text
             ), tags=(tag,))
 
         tree.tag_configure("completed", background="#e8f5e9", foreground="#2e7d32")
-        tree.tag_configure("hot",       background="#ffebee", foreground="#c62828", font=("Helvetica", 10, "bold"))
+        tree.tag_configure("on_fire",   background="#ffebee", foreground="#c62828", font=("Helvetica", 10, "bold"))
+        tree.tag_configure("hot",       background="#ffcdd2", foreground="#b71c1c")
         tree.tag_configure("warm",      background="#fff3e0", foreground="#ef6c00")
         tree.tag_configure("normal",    background="#ffffff", foreground="#000000")
 

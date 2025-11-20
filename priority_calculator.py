@@ -206,30 +206,36 @@ class PriorityCalculator:
             return 1.0
 
         cursor = self.conn.cursor()
-        
-        # Считаем количество задач по цели
-        cursor.execute("""
-            SELECT COUNT(*), SUM(CASE WHEN status = 'done' THEN 1 ELSE 0 END)
-            FROM tasks WHERE goal_id = ?
-        """, (goal_id,))
-        total, done = cursor.fetchone()
-        
-        if total == 0:
-            return 1.0
-        
-        progress = done / total
-        
-        momentum_bonus = 2.0 * (1 - progress) * progress
-        
-        # Получаем базовый вес цели
+
         cursor.execute("SELECT weight FROM goals WHERE id = ?", (goal_id,))
-        base_weight = cursor.fetchone()
-        base_weight = base_weight[0] if base_weight else 1.0
-        
-        # Итоговый динамический вес
+        row = cursor.fetchone()
+        if not row:
+            return 1.0
+        base_weight = row[0]
+
+        # взвешенный прогресс по важности задач
+        cursor.execute("""
+            SELECT 
+                SUM(importance_level) as total_importance,
+                SUM(CASE WHEN status = 'done' THEN importance_level ELSE 0 END) as done_importance
+            FROM tasks 
+            WHERE goal_id = ?
+        """, (goal_id,))
+
+        result = cursor.fetchone()
+        total_importance = result[0] or 0
+        done_importance = result[1] or 0
+
+        if total_importance == 0:
+            return base_weight
+
+        progress = done_importance / total_importance
+
+        momentum_bonus = 2.5 * progress * (1 - progress)
+
         dynamic_weight = base_weight * (1 + momentum_bonus)
-        
-        return min(dynamic_weight, 3.0)  
+
+        return min(dynamic_weight, 4.0)
 
     def format_reason(self, b: Dict, ctx: Dict) -> str:
         parts = []
