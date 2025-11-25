@@ -13,108 +13,137 @@ class GUITabs:
     def setup_styles(self):
         style = ttk.Style()
         style.theme_use('clam')
-        style.configure("TButton", padding=6, font=('Helvetica', 10))
-        style.configure("Treeview", background="#ffffff", fieldbackground="#ffffff")
-        style.configure("InProgress.Treeview", background="#fff8e1", fieldbackground="#fff8e1")
-        style.configure("Done.Treeview", background="#e8f5e9", fieldbackground="#e8f5e9", foreground="#2e7d32")
+
+        bg = "#f8fafc"
+        accent = "#3b82f6"
+        success = "#10b981"
+        warning = "#f59e0b"
+        danger = "#ef4444"
+        muted = "#64748b"
+
+        style.configure("TButton", font=("Helvetica", 10, "bold"), padding=8)
+        style.map("TButton",
+                  background=[('active', accent), ('pressed', '#2563eb')],
+                  foreground=[('active', 'white')])
+
+        style.configure("Accent.TButton", background=accent, foreground="white")
+        style.map("Accent.TButton",
+                  background=[('active', '#2563eb')])
+
+        style.configure("Success.TButton", background=success, foreground="white")
+        style.map("Success.TButton",
+                  background=[('active', '#059669')])
+
+        style.configure("Danger.TButton", background=danger, foreground="white")
+        style.map("Danger.TButton",
+                  background=[('active', '#dc2626')])
+
+        style.configure("Treeview",
+                        background="white",
+                        fieldbackground="white",
+                        borderwidth=1,
+                        relief="flat",
+                        rowheight=32,
+                        font=("Helvetica", 10))
+        style.configure("Treeview.Heading", font=("Helvetica", 11, "bold"), foreground=muted)
+        style.map("Treeview", background=[('selected', accent)])
+
+        style.configure("goal.Treeview", background="white")
+        style.configure("completed", background="#ecfdf5", foreground="#166534")
+        style.configure("on_fire",   background="#fee2e2", foreground="#991b1b", font=("Helvetica", 10, "bold"))
+        style.configure("hot",       background="#fecaca", foreground="#991b1b")
+        style.configure("warm",      background="#fed7aa", foreground="#9c4221")
+        style.configure("normal",  background="white", foreground="#1e293b")
+
+        style.configure("blocked",     background="#fee2e2", foreground="#991b1b")
+        style.configure("in_progress", background="#fffbeb", foreground="#92400e")
+        style.configure("done",        background="#f0fdf4", foreground="#166534")
 
     def create_tabs(self):
         tab_control = ttk.Notebook(self.main_app.root)
-        tab_control.pack(pady=15, padx=20, fill=tk.BOTH, expand=True)
+        tab_control.pack(fill=tk.BOTH, expand=True, padx=20, pady=(0,15))
 
-        # Вкладка 1: Задачи на сегодня
-        today_frame = tk.Frame(tab_control, bg="#f0f4f8")
-        tab_control.add(today_frame, text=" Задачи на сегодня ")
+        icons = ["today", "progress", "done", "goals"]
+        titles = [" Задачи на сегодня ", " В процессе ", " Выполненные задачи ", " Цели "]
 
-        # Вкладка 2: В процессе
-        in_progress_frame = tk.Frame(tab_control, bg="#f0f4f8")
-        tab_control.add(in_progress_frame, text=" В процессе ")
+        for title in titles:
+            frame = tk.Frame(tab_control, bg="#ffffff", relief="flat")
+            frame.pack(fill=tk.BOTH, expand=True)
+            tab_control.add(frame, text=title)
 
-        done_frame = tk.Frame(tab_control, bg="#f0f4f8")
-        tab_control.add(done_frame, text=" Выполненные задачи ")
-
-        goals_frame = tk.Frame(tab_control, bg="#f0f4f8")
-        tab_control.add(goals_frame, text=" Цели ")
-
-        self.setup_task_tree(today_frame, "today")
-        self.setup_task_tree(in_progress_frame, "in_progress")
-        self.setup_task_tree(done_frame, "done")
-        self.setup_goals_tree(goals_frame)
+        self.setup_task_tree(tab_control.tabs()[0], "today")
+        self.setup_task_tree(tab_control.tabs()[1], "in_progress")
+        self.setup_task_tree(tab_control.tabs()[2], "done")
+        self.setup_goals_tree(tab_control.tabs()[3])
 
     def setup_task_tree(self, parent, tab_type):
-        frame = tk.LabelFrame(parent, text=" ", font=("Helvetica", 10))
-        frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
+        parent = tk.Frame(self.main_app.root.nametowidget(parent), bg="white")
+        parent.pack(fill=tk.BOTH, expand=True)
+
+        frame = tk.Frame(parent, bg="white")
+        frame.pack(fill=tk.BOTH, expand=True, padx=15, pady=10)
 
         columns = ("ID", "Задача", "Время", "Важность", "Дедлайн", "Цель")
-        style_name = "InProgress.Treeview" if tab_type == "in_progress" else "Treeview"
-        if tab_type == "done":
-            style_name = "Done.Treeview"
+        tree = ttk.Treeview(frame, columns=columns, show="headings", style="Treeview", selectmode="extended")
         
-        tree = ttk.Treeview(frame, columns=columns, show="headings", height=10, 
-                           style=style_name, selectmode="extended")
-        
-        for col in columns:
-            tree.heading(col, text=col)
-            tree.column(col, width=120, anchor="center")
-        tree.column("Задача", width=300, anchor="w")
-        tree.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        widths = [60, 380, 100, 100, 140, 180]
+        for i, col in enumerate(columns):
+            tree.heading(col, text=col, anchor="center")
+            tree.column(col, width=widths[i], anchor="center")
+        tree.column("Задача", anchor="w")
+        tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
         scrollbar = ttk.Scrollbar(frame, orient=tk.VERTICAL, command=tree.yview)
-        tree.configure(yscroll=scrollbar.set)
+        tree.configure(yscrollcommand=scrollbar.set)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
 
-        btn_frame = tk.Frame(frame)
-        btn_frame.pack(pady=5)
+        btn_frame = tk.Frame(parent, bg="white")
+        btn_frame.pack(pady=8)
 
-        # Кнопки в зависимости от типа вкладки
         if tab_type == "today":
-            ttk.Button(btn_frame, text="Отметить как выполнено",
-                      command=lambda: self.mark_done(tree)).pack(side=tk.LEFT, padx=5)
-            ttk.Button(btn_frame, text="Перенести на завтра",
-                      command=lambda: self.postpone_selected(tree)).pack(side=tk.LEFT, padx=5)
-        elif tab_type == "in_progress":  # in_progress
-            ttk.Button(btn_frame, text="Завершить задачу",
-                      command=lambda: self.finish_task(tree)).pack(side=tk.LEFT, padx=5)
-            ttk.Button(btn_frame, text="Перенести на завтра",
-                      command=lambda: self.postpone_selected(tree)).pack(side=tk.LEFT, padx=5)
-            ttk.Button(btn_frame, text="Вернуть в список",
-                      command=lambda: self.return_to_todo(tree)).pack(side=tk.LEFT, padx=5)
-        
-        elif tab_type == "done":
-            ttk.Button(btn_frame, text="Удалить навсегда",
-                  command=lambda: self.delete_done(tree)).pack(side=tk.LEFT, padx=5)
-        
-
-        # Сохраняем ссылки на деревья
-        if tab_type == "today":
-            self.tree_today = tree
+            ttk.Button(btn_frame, text="Отметить как выполнено", style="Success.TButton",
+                      command=lambda: self.mark_done(tree)).pack(side=tk.LEFT, padx=4)
+            ttk.Button(btn_frame, text="Перенести на завтра", 
+                      command=lambda: self.postpone_selected(tree)).pack(side=tk.LEFT, padx=4)
         elif tab_type == "in_progress":
-            self.tree_in_progress = tree
+            ttk.Button(btn_frame, text="Завершить задачу", style="Success.TButton",
+                      command=lambda: self.finish_task(tree)).pack(side=tk.LEFT, padx=4)
+            ttk.Button(btn_frame, text="Перенести на завтра",
+                      command=lambda: self.postpone_selected(tree)).pack(side=tk.LEFT, padx=4)
+            ttk.Button(btn_frame, text="Вернуть в список",
+                      command=lambda: self.return_to_todo(tree)).pack(side=tk.LEFT, padx=4)
         elif tab_type == "done":
-            self.tree_done = tree
+            ttk.Button(btn_frame, text="Удалить навсегда", style="Danger.TButton",
+                      command=lambda: self.delete_done(tree)).pack(side=tk.LEFT, padx=4)
+
+        setattr(self, f"tree_{tab_type}", tree)
 
     def setup_goals_tree(self, parent):
-        frame = tk.LabelFrame(parent, text=" ", font=("Helvetica", 10))
-        frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
+        parent = tk.Frame(self.main_app.root.nametowidget(parent), bg="white")
+        parent.pack(fill=tk.BOTH, expand=True)
+
+        frame = tk.Frame(parent, bg="white")
+        frame.pack(fill=tk.BOTH, expand=True, padx=15, pady=10)
 
         columns = ("ID", "Цель", "Вес", "Дедлайн", "Выполнено", "Всего", "Прогресс")
-        tree = ttk.Treeview(frame, columns=columns, show="headings", height=12, selectmode="browse")
+        tree = ttk.Treeview(frame, columns=columns, show="headings", style="goal.Treeview", selectmode="browse")
         
-        for col in columns:
-            tree.heading(col, text=col)
-            tree.column(col, width=100, anchor="center")
-        tree.column("Цель", width=250, anchor="w")
-        tree.column("Прогресс", width=120, anchor="center")
-        tree.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        widths = [60, 320, 110, 120, 100, 80, 160]
+        for i, col in enumerate(columns):
+            tree.heading(col, text=col, anchor="center")
+            tree.column(col, width=widths[i], anchor="center")
+        tree.column("Цель", anchor="w")
+        tree.column("Прогресс", anchor="w")
+        tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
         scrollbar = ttk.Scrollbar(frame, orient=tk.VERTICAL, command=tree.yview)
-        tree.configure(yscroll=scrollbar.set)
+        tree.configure(yscrollcommand=scrollbar.set)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
 
-        btn_frame = tk.Frame(frame)
-        btn_frame.pack(pady=5)
-        ttk.Button(btn_frame, text="Показать задачи",
-                command=lambda: self.show_goal_tasks(tree)).pack(side=tk.LEFT, padx=5)
+        btn_frame = tk.Frame(parent, bg="white")
+        btn_frame.pack(pady=8)
+        ttk.Button(btn_frame, text="Показать задачи", style="Accent.TButton",
+                  command=lambda: self.show_goal_tasks(tree)).pack(padx=4)
 
         self.tree_goals = tree
 

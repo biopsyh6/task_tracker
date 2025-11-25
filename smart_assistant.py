@@ -25,7 +25,7 @@ class SmartAssistantGUI:
 
     def setup_main_window(self):
         self.root.title("Трекер задач")
-        self.root.geometry("1000x750")
+        self.root.geometry("1100x750")
         self.root.configure(bg="#f0f4f8")
         
 
@@ -45,7 +45,7 @@ class SmartAssistantGUI:
         btn_frame.pack(pady=10)
 
         buttons = [
-            ("Настроить расписание", self.open_schedule),
+            ("Расписание", self.open_schedule),
             ("Добавить цель", self.open_add_goal),
             ("Добавить задачу", self.open_add_task),
             ("Установить энергию", self.open_set_energy),
