@@ -179,10 +179,6 @@ class GUITabs:
                 weight_display = f"{base_weight:.2f}"
             else:
                 weight_display = f"{base_weight:.2f} → {current_weight:.2f}"
-                if current_weight >= base_weight * 2.0:
-                    weight_display += " [Горячо!]"
-                elif current_weight >= base_weight * 1.5:
-                    weight_display += " [Тепло]"
 
             if percent == 100 and total_tasks > 0:
                 tag = "completed"
@@ -324,8 +320,9 @@ class GUITabs:
 
         win = tk.Toplevel(self.main_app.root)
         win.title("Задачи цели")
-        win.geometry("700x500")
+        win.geometry("1200x500")
         win.configure(bg="#f0f4f8")
+        win.grab_set()
 
         task_tree = ttk.Treeview(win, columns=("ID", "Задача", "Статус", "Дедлайн"), show="headings")
         for col in task_tree["columns"]:

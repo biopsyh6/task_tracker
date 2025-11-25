@@ -101,7 +101,6 @@ class SmartAssistantGUI:
     def open_set_energy(self):
         self.gui_windows.open_set_energy()
 
-    # === Рекомендация ===
     def show_recommendation(self):
         calc = PriorityCalculator(self.conn)
         rec = calc.recommend_task()
